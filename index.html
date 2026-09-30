@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visor de Suelos de los Valles Calchaquíes - INTA</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- jsPDF & AutoTable CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Estilos personalizados -->
+  <link rel="stylesheet" href="css/styles.css?v=2.3">
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased h-screen flex flex-col">
+
+  <!-- NAVBAR SUPERIOR LIMPIO Y ESPACIOSO -->
+  <header id="navbar" class="h-14 bg-[#713f12] text-white flex items-center justify-between px-4 sm:px-6 z-20 shadow-md">
+    <!-- Identidad del Proyecto -->
+    <div class="flex items-center gap-3">
+      <img src="logo_inta.png" alt="INTA" class="h-9 w-9 object-contain bg-white rounded-lg p-0.5 border border-amber-400 shadow-sm shrink-0">
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white whitespace-nowrap">
+          Suelos de los Valles Calchaquíes
+        </h1>
+        <span class="text-xs text-amber-200/80 hidden md:inline whitespace-nowrap">
+          &middot; EEA INTA Salta
+        </span>
+      </div>
+    </div>
+
+    <!-- Acciones Globales Derecha -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Buscador -->
+      <div class="relative flex items-center">
+        <input 
+          type="text" 
+          id="search-input" 
+          placeholder="Buscar serie o símbolo..." 
+          class="bg-amber-950/80 text-xs text-white placeholder-amber-300/60 pl-8 pr-3 py-1.5 rounded-lg border border-amber-700/80 focus:outline-none focus:ring-1 focus:ring-amber-400 w-36 sm:w-56 transition-all"
+        />
+        <i class="fa-solid fa-magnifying-glass text-xs text-amber-300 absolute left-2.5 pointer-events-none"></i>
+        <button id="search-btn" class="sr-only">Buscar</button>
+      </div>
+
+      <!-- Botón Principal: Catálogo de Series & Descarga de Fichas -->
+      <button 
+        id="open-catalog-btn" 
+        class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm transition whitespace-nowrap"
+        title="Descargar Fichas Técnicas en PDF o consultar las 27 series calchaquíes"
+      >
+        <i class="fa-solid fa-file-pdf text-red-200 text-sm"></i>
+        <span>Descargar Fichas (27)</span>
+      </button>
+
+      <!-- Botón Glosario -->
+      <button 
+        id="open-glossary-btn" 
+        title="Glosario Edafológico" 
+        class="bg-amber-900/90 hover:bg-amber-800 text-amber-200 px-2.5 py-1.5 rounded-lg border border-amber-700 text-xs transition flex items-center gap-1"
+      >
+        <i class="fa-solid fa-book-bookmark text-xs"></i>
+        <span class="hidden sm:inline">Glosario</span>
+      </button>
+
+      <!-- Botón Acerca de -->
+      <button 
+        id="open-about-btn" 
+        title="Información y Metadatos" 
+        class="bg-amber-900/90 hover:bg-amber-800 text-amber-200 p-2 rounded-lg border border-amber-700 text-xs transition"
+      >
+        <i class="fa-solid fa-circle-info"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL: MAPA + PANELES -->
+  <main class="relative flex-1 w-full h-[calc(100vh-56px)] overflow-hidden">
+    
+    <!-- MAPA LEAFLET -->
+    <div id="map"></div>
+
+    <!-- BARRA DE HERRAMIENTAS FLOTANTE DEL MAPA -->
+    <div 
+      id="map-toolbar" 
+      style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1005;"
+      class="bg-white/95 backdrop-blur-md border border-slate-300 shadow-xl rounded-xl px-3 py-1.5 flex items-center gap-2 sm:gap-3 text-xs text-slate-700 whitespace-nowrap pointer-events-auto"
+    >
+      <!-- Selector Temática -->
+      <div class="flex items-center gap-1.5">
+        <span class="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Temática:</span>
+        <select id="thematic-select" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-700 cursor-pointer text-xs">
+          <option value="aptitud">Aptitud para Riego</option>
+          <option value="serie">Serie Principal</option>
+          <option value="tipo">Tipo de Unidad</option>
+        </select>
+      </div>
+
+      <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+      <!-- Selector Mapa Base -->
+      <div class="flex items-center gap-1.5">
+        <span class="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Fondo:</span>
+        <select id="basemap-select" class="bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg px-2 py-1 font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-700 cursor-pointer text-xs">
+          <option value="satelite">Satélite (Esri)</option>
+          <option value="argenmap">ArgenMap (IGN)</option>
+          <option value="osm">OpenStreetMap</option>
+          <option value="topo">Topográfico</option>
+        </select>
+      </div>
+
+      <div class="h-4 w-px bg-slate-200 hidden sm:block"></div>
+
+      <!-- Toggle Solo Bordes -->
+      <button 
+        id="toggle-borders-btn" 
+        class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 px-2.5 py-1 rounded-lg font-semibold flex items-center gap-1.5 transition text-xs"
+        title="Alternar entre polígonos rellenos y solo contornos transparentes"
+      >
+        <i class="fa-solid fa-vector-square text-amber-700"></i>
+        <span class="hidden sm:inline">Solo Bordes</span>
+      </button>
+
+      <!-- Slider de Opacidad -->
+      <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg" title="Ajustar transparencia del mapa">
+        <i class="fa-solid fa-circle-half-stroke text-slate-500 text-xs"></i>
+        <input id="opacity-slider" type="range" min="0" max="1" step="0.05" value="0.65" class="w-14 h-1.5 bg-slate-300 accent-amber-700 rounded-lg cursor-pointer">
+      </div>
+
+      <!-- Botón GPS -->
+      <button 
+        id="gps-btn" 
+        title="Ubicar mi posición actual GPS" 
+        class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 p-1.5 rounded-lg transition"
+      >
+        <i class="fa-solid fa-location-crosshairs text-amber-700"></i>
+      </button>
+    </div>
+
+    <!-- CAJA DE INFORMACIÓN RÁPIDA (HOVER BOX) -->
+    <div id="hover-info-box" class="hidden"></div>
+
+    <!-- LEYENDA FLOTANTE -->
+    <div id="legend-card" class="bg-white/95 p-3 rounded-lg border border-slate-200 transition">
+      <div class="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100">
+        <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+          <i class="fa-solid fa-layer-group text-amber-700"></i> Leyenda
+        </span>
+      </div>
+      <div id="legend-content">
+        <!-- Rellenado por js/map.js -->
+      </div>
+      <div class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+        <label class="flex items-center gap-1.5 cursor-pointer hover:text-slate-900 select-none">
+          <input type="checkbox" id="check-borders-legend" class="rounded text-amber-700 focus:ring-0">
+          <span>Solo contornos / Transparente</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- SIDEBAR DE DETALLE DE SUELOS (OFFCANVAS) -->
+    <aside id="sidebar" class="bg-white border-l border-slate-200 flex flex-col">
+      <!-- Encabezado de la Unidad Seleccionada -->
+      <div class="p-4 bg-slate-900 text-white flex items-start justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span id="sb-simbolo" class="bg-amber-500 text-slate-950 font-mono font-bold text-xs px-2 py-0.5 rounded shadow-sm">--</span>
+            <span id="sb-tipo-uc" class="text-xs text-slate-300 font-medium">Unidad Cartográfica</span>
+          </div>
+          <h2 id="sb-nombre-uc" class="text-base font-bold text-white leading-snug">Seleccione un área en el mapa</h2>
+          <p class="text-xs text-slate-400 mt-1">Superficie: <span id="sb-superficie" class="text-slate-200 font-medium">-</span></p>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button 
+            id="toggle-maximize-sidebar-btn" 
+            title="Maximizar o restaurar tamaño de la ficha" 
+            class="text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-2 py-1 rounded text-xs transition flex items-center gap-1.5 border border-slate-700"
+          >
+            <i class="fa-solid fa-expand text-amber-400"></i>
+            <span id="sb-max-text" class="text-[11px] font-medium">Ampliar</span>
+          </button>
+          <button id="close-sidebar-btn" title="Cerrar panel" class="text-slate-400 hover:text-white p-1.5 text-base rounded hover:bg-slate-800 transition">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Badges de Métricas Clave -->
+      <div class="grid grid-cols-2 gap-2 p-3 bg-slate-100 border-b border-slate-200">
+        <div id="card-metric-aptitud" class="bg-white p-2 rounded-lg border border-slate-200 flex items-center gap-2.5 cursor-pointer hover:border-emerald-500 hover:shadow-sm transition" title="Haga clic para ver los detalles de Aptitud para Riego en la Fase">
+          <div class="w-8 h-8 rounded bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fa-solid fa-faucet-drip"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Aptitud Riego</div>
+            <div id="sb-aptitud-badge" class="text-sm font-bold text-emerald-700">--</div>
+          </div>
+        </div>
+        <div id="card-metric-serie" class="bg-white p-2 rounded-lg border border-slate-200 flex items-center gap-2.5 cursor-pointer hover:border-amber-500 hover:shadow-sm transition" title="Haga clic para ver la información general de la Serie">
+          <div class="w-8 h-8 rounded bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs shrink-0">
+            <i class="fa-solid fa-layer-group"></i>
+          </div>
+          <div class="overflow-hidden">
+            <div class="text-[10px] text-slate-500 uppercase font-semibold">Serie de Suelo</div>
+            <div id="sb-serie-badge" class="text-sm font-bold text-amber-700 truncate max-w-[120px]">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conmutador Intuitivo: FASE vs SERIE GENERAL -->
+      <div class="p-2 bg-slate-100 border-b border-slate-200 flex items-center gap-1.5">
+        <button 
+          id="btn-view-fase" 
+          class="flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-amber-700 text-white shadow-sm"
+        >
+          <i class="fa-solid fa-layer-group"></i>
+          <span id="label-view-fase">Fase Cartográfica</span>
+        </button>
+        <button 
+          id="btn-view-serie" 
+          class="flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 bg-white text-slate-700 hover:bg-slate-200 border border-slate-300"
+        >
+          <i class="fa-solid fa-mountain"></i>
+          <span id="label-view-serie">Serie General</span>
+        </button>
+      </div>
+
+      <!-- Contenedor con Scroll de la Ficha -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+        
+        <!-- ================= VISTA 1: FASE CARTOGRÁFICA (TODO EN UN SOLO LUGAR) ================= -->
+        <div id="view-fase-content" class="space-y-4">
+          
+          <!-- Selector Rápido de Fases de la misma Serie -->
+          <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <i class="fa-solid fa-list-check text-amber-700"></i> Fases de la Serie <span id="fase-serie-parent-name" class="underline decoration-amber-400">--</span>:
+              </span>
+              <button id="quick-go-serie-btn" class="text-[11px] text-amber-800 hover:text-amber-950 font-bold underline flex items-center gap-1">
+                Ver Serie ➡
+              </button>
+            </div>
+            <div id="fases-selector-bar" class="flex flex-wrap gap-1.5">
+              <!-- Botones de fases generados dinámicamente -->
+            </div>
+          </div>
+
+          <!-- Tarjeta de la Fase Seleccionada -->
+          <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm space-y-2.5">
+            <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Unidad Seleccionada</span>
+                <h3 id="fase-display-nombre" class="text-sm font-bold text-slate-900 leading-snug">--</h3>
+              </div>
+              <span id="fase-display-apt-badge" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                Aptitud: --
+              </span>
+            </div>
+
+            <div>
+              <h4 class="text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                <i class="fa-solid fa-align-left text-slate-400"></i> Descripción en el Terreno:
+              </h4>
+              <p id="fase-display-desc" class="text-xs text-slate-600 leading-relaxed text-justify bg-slate-50 p-3 rounded-lg border border-slate-200">
+                --
+              </p>
+            </div>
+          </div>
+
+          <!-- Evaluación de Aptitud para Riego -->
+          <div class="border border-emerald-200 bg-emerald-50/50 rounded-xl p-3.5 space-y-2">
+            <div class="flex items-center gap-2 text-emerald-950 font-bold text-xs">
+              <i class="fa-solid fa-faucet-drip text-emerald-700 text-sm"></i>
+              <span id="fase-display-apt-title">Evaluación de Aptitud para Riego</span>
+            </div>
+            <p id="fase-display-apt-desc" class="text-xs text-slate-700 leading-relaxed text-justify bg-white p-3 rounded-lg border border-emerald-200">
+              --
+            </p>
+            <div class="text-[10px] text-slate-500 pt-1 border-t border-emerald-200/60 leading-tight">
+              <b>Limitaciones:</b> <b>s:</b> suelo (textura, sales) &middot; <b>t:</b> topografía (pendiente) &middot; <b>d:</b> drenaje &middot; <b>e:</b> eólico
+            </div>
+          </div>
+
+          <!-- Perfil Modal de Horizontes -->
+          <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm space-y-2">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <i class="fa-solid fa-layer-group text-amber-700"></i> Perfil Modal Analítico de la Serie
+              </h4>
+              <span class="text-[11px] text-slate-400 font-mono">Profundidad (cm)</span>
+            </div>
+            
+            <div class="overflow-x-auto border border-slate-200 rounded-lg">
+              <table class="w-full text-left border-collapse horizon-table">
+                <thead>
+                  <tr>
+                    <th class="text-center">Horiz</th>
+                    <th class="text-center">Desig</th>
+                    <th class="text-center">Prof (cm)</th>
+                    <th>Descripción Morfológica</th>
+                  </tr>
+                </thead>
+                <tbody id="fase-display-horizontes-tbody">
+                  <!-- Rellenado dinámicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Botón de Acceso a la Serie -->
+          <div class="pt-1">
+            <button 
+              id="switch-to-serie-btn" 
+              class="w-full py-2.5 px-3 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition"
+            >
+              <i class="fa-solid fa-mountain text-amber-700"></i>
+              <span>Ver Factores Ambientales y Formación de la Serie <b id="btn-serie-target-name">--</b></span>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- ================= VISTA 2: SERIE GENERAL (FACTORES AMBIENTALES Y CATÁLOGO DE FASES) ================= -->
+        <div id="view-serie-content" class="hidden space-y-4">
+          
+          <!-- Banner de la Serie con Botón Volver -->
+          <div class="bg-gradient-to-r from-amber-900 to-amber-950 text-white rounded-xl p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <span class="text-[10px] uppercase font-bold text-amber-300 tracking-wider">Serie Edafología General</span>
+                <h3 id="serie-display-nombre" class="text-lg font-bold text-white mt-0.5 leading-tight">--</h3>
+                <p class="text-xs text-amber-200/80 mt-1">Superficie total relevada: <b id="serie-display-total-ha">--</b></p>
+              </div>
+              <button id="back-to-fase-btn" class="bg-white/10 hover:bg-white/20 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span>Volver a Fase</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Características Morfogénicas -->
+          <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm space-y-1.5">
+            <h4 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-seedling text-amber-700"></i> Características Principales:
+            </h4>
+            <p id="serie-display-caracteristicas" class="text-xs text-slate-600 leading-relaxed text-justify bg-slate-50 p-3 rounded-lg border border-slate-200">
+              --
+            </p>
+          </div>
+
+          <!-- Factores de Formación y Ambiente -->
+          <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm space-y-2.5">
+            <h4 class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-mountain-sun text-slate-500"></i> Factores de Sitio, Ambiente y Toponimia
+            </h4>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div><span class="text-slate-500">Variaciones:</span> <span id="serie-display-variaciones" class="font-medium text-slate-800">-</span></div>
+              <div><span class="text-slate-500">Drenaje Natural:</span> <span id="serie-display-drenaje" class="font-medium text-slate-800">-</span></div>
+              <div class="col-span-full"><span class="text-slate-500">Vegetación Natural:</span> <span id="serie-display-vegetacion" class="font-medium text-slate-800">-</span></div>
+              <div class="col-span-full"><span class="text-slate-500">Uso Actual:</span> <span id="serie-display-uso" class="font-medium text-slate-800">-</span></div>
+              <div class="col-span-full"><span class="text-slate-500">Distribución Geográfica:</span> <span id="serie-display-distribucion" class="font-medium text-slate-800">-</span></div>
+              <div class="col-span-full"><span class="text-slate-500">Asociación con otros Suelos:</span> <span id="serie-display-asociacion" class="font-medium text-slate-800">-</span></div>
+              <div class="col-span-full"><span class="text-slate-500">Origen del Nombre:</span> <span id="serie-display-origen" class="font-medium text-slate-800">-</span></div>
+            </div>
+          </div>
+
+          <!-- Directorio de Fases de esta Serie -->
+          <div class="border border-slate-200 rounded-xl p-3.5 bg-white shadow-sm space-y-2.5">
+            <h4 class="text-xs font-bold text-slate-800 flex items-center justify-between">
+              <span class="flex items-center gap-1.5">
+                <i class="fa-solid fa-map-location-dot text-amber-700"></i> Fases que Componen esta Serie
+              </span>
+              <span id="serie-fases-count" class="text-[11px] text-slate-500 font-mono">0 fases</span>
+            </h4>
+            <div id="serie-fases-cards-list" class="space-y-2">
+              <!-- Tarjetas interactivas de cada fase con botón directo "Consultar esta Fase" -->
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- BOTONES DE ACCIÓN INFERIORES (Único botón de descarga principal) -->
+      <div class="p-3 bg-slate-50 border-t border-slate-200 flex items-center gap-2">
+        <button 
+          id="download-pdf-btn" 
+          class="flex-1 bg-[#713f12] hover:bg-[#854d0e] text-white py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition"
+        >
+          <i class="fa-solid fa-file-pdf text-amber-300"></i>
+          Descargar Ficha Técnica PDF
+        </button>
+        <button 
+          onclick="window.print()" 
+          title="Imprimir Ficha" 
+          class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 py-2 px-3 rounded-lg text-xs transition"
+        >
+          <i class="fa-solid fa-print"></i>
+        </button>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- MODAL: CATÁLOGO DE LAS 27 SERIES -->
+  <div id="catalog-modal" class="modal-container">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+      <div class="p-4 bg-[#713f12] text-white flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-bold flex items-center gap-2">
+            <i class="fa-solid fa-layer-group text-amber-300"></i>
+            Catálogo de Series de Suelos de los Valles Calchaquíes
+          </h2>
+          <p class="text-xs text-amber-200/80 mt-0.5">27 series edáficas clasificadas y descritas en la cuenca calchaquí</p>
+        </div>
+        <button id="close-catalog-btn" class="text-amber-200 hover:text-white p-1 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Barra de Filtros del Catálogo -->
+      <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="relative flex-1 min-w-[200px]">
+          <input 
+            type="text" 
+            id="catalog-search-input" 
+            placeholder="Filtrar por nombre de serie, características o fases..." 
+            class="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-600"
+          />
+          <i class="fa-solid fa-magnifying-glass text-xs text-slate-400 absolute left-2.5 top-2.5"></i>
+        </div>
+        <span id="catalog-count-badge" class="text-xs font-semibold text-slate-500">27 series</span>
+      </div>
+
+      <!-- Tarjetas de Series -->
+      <div id="series-cards-container" class="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 bg-slate-100/60">
+        <!-- Rellenado por app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GLOSARIO EDAFOLÓGICO -->
+  <div id="glossary-modal" class="modal-container">
+    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200">
+      <div class="p-4 bg-slate-900 text-white flex items-center justify-between">
+        <div>
+          <h2 class="text-base font-bold flex items-center gap-2">
+            <i class="fa-solid fa-book-bookmark text-amber-400"></i>
+            Glosario de Edafología y Suelos
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Términos técnicos utilizados en el levantamiento de suelos de los Valles Calchaquíes</p>
+        </div>
+        <button id="close-glossary-btn" class="text-slate-400 hover:text-white p-1 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Buscador de Términos -->
+      <div class="p-3 bg-slate-50 border-b border-slate-200">
+        <div class="relative">
+          <input 
+            type="text" 
+            id="glossary-search-input" 
+            placeholder="Buscar término (ej: consistencia, friable, coluvio, calcáreo)..." 
+            class="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-1 focus:ring-amber-600"
+          />
+          <i class="fa-solid fa-magnifying-glass text-xs text-slate-400 absolute left-2.5 top-2.5"></i>
+        </div>
+      </div>
+
+      <!-- Lista de Términos -->
+      <div id="glossary-terms-container" class="flex-1 overflow-y-auto p-4 space-y-2.5 bg-slate-50/50">
+        <!-- Rellenado por app.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ACERCA DE -->
+  <div id="about-modal" class="modal-container">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b">
+        <div class="flex items-center gap-2.5">
+          <img src="logo_inta.png" alt="INTA" class="h-8 w-8 object-contain">
+          <div>
+            <h3 class="text-base font-bold text-slate-800">Suelos de los Valles Calchaquíes</h3>
+            <p class="text-xs text-slate-500">Sistema de Información Geográfica &middot; EEA INTA Salta</p>
+          </div>
+        </div>
+        <button id="close-about-btn" class="text-slate-400 hover:text-slate-700 p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="text-xs text-slate-600 space-y-3 leading-relaxed max-h-[60vh] overflow-y-auto pr-1">
+        <p>
+          <b>Origen del Estudio:</b> Basado en el libro oficial <i>"Levantamiento de los Suelos de los Valles Calchaquíes - Provincia de Salta"</i>, fruto del convenio histórico entre el Gobierno de la Provincia de Salta y la Universidad Nacional de La Plata (UNLP, 1970).
+        </p>
+        <p>
+          <b>Autores del Levantamiento Original (1970):</b> Ing. Agr. Rafael Valencia, Lic. Alberto Lago, Lic. Teodoro Chafatinos, Lic. Roberto Ibarguren, Ing. Agr. Rubén Menegatti y Lic. Adelqui Ocaranza.
+        </p>
+        <p>
+          <b>Adecuación a SIG (2015):</b> Digitalización, georreferenciación y vinculación alfanumérica de 31 hojas cartográficas (La Poma, Payogasta, Cachi, Seclantás, Molinos, Angastaco, Cafayate, San Carlos, Animaná, Tolombón, etc.) para brindar acceso público e interactivo al conocimiento edafológico de los valles.
+        </p>
+        <p>
+          <b>Autores de la Adecuación a SIG (2015):</b> Castrillo Silvana, Elena Hernán, Paoli Héctor (INTA EEA Salta).
+        </p>
+        <p>
+          <b>Desarrollo de la Aplicación Web:</b> Lic. Hernán Elena.
+        </p>
+        <p>
+          <b>Contenido de la Aplicación:</b>
+        </p>
+        <ul class="list-disc pl-4 space-y-1 text-slate-700">
+          <li>1.029 polígonos vectoriales optimizados para carga web ultra rápida en GitHub Pages.</li>
+          <li>Catálogo interactivo con las 27 series de suelos y 106 fases cartográficas.</li>
+          <li>Perfiles modales de horizontes con profundidades y descripciones morfológicas.</li>
+          <li>Clasificación de aptitud para riego de acuerdo a las características de la cuenca árida.</li>
+          <li>Generador integrado de Fichas Técnicas descargables en PDF con logotipo institucional de INTA.</li>
+          <li>Glosario edafológico integrado con más de 70 términos técnicos.</li>
+        </ul>
+      </div>
+
+      <div class="pt-2 border-t flex justify-end">
+        <button id="understand-about-btn" class="bg-amber-800 text-white text-xs px-4 py-2 rounded-lg font-semibold hover:bg-amber-700 transition">
+          Entendido
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCRIPTS DE LA APLICACIÓN -->
+  <script src="js/logo_inta_base64.js?v=2.3"></script>
+  <script src="js/pdf_export.js?v=2.3"></script>
+  <script src="js/map.js?v=2.3"></script>
+  <script src="js/app.js?v=2.3"></script>
+</body>
+</html>
